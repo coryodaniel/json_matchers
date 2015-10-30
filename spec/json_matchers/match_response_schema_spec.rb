@@ -95,22 +95,61 @@ describe JsonMatchers, "#match_response_schema" do
   end
 
   it "supports $ref" do
-    create_schema("single", {
+    create_schema("user", {
+      "id" => "user",
       "type" => "object",
-      "required" => ["foo"],
-      "properties" => {
-        "foo" => { "type" => "string" },
+      "definitions" => {
+        "id" => {
+          "description" => "A unique identifier",
+          "example" => "1",
+          "type" => "integer"
+        }
+      },
+      "required" => ["id"],
+      "properties" => { "id" => { "$ref" => "#/definitions/id" } }
+    })
+    create_schema("users", {
+      "id" => "users",
+      "type" => "object",
+      "definitions" => {
+        "users" => {
+          "description" => "A collection of users",
+          "example" => [{ "id" => "1" }],
+          "type" => "array",
+          "items" => { "$ref" => "/schemas/user.json#" }
+        }
+      },
+      "required" => ["users"],
+      "properties" => { "users" => { "$ref" => "#/definitions/users" } }
+    })
+
+    valid_response = response_for([{ "id" => "1" }])
+    invalid_response = response_for([{ "id" => "invalid" }])
+
+    expect(valid_response).to match_response_schema("users")
+    expect(invalid_response).not_to match_response_schema("users")
+  end
+
+  it "supports the 'id' keyword" do
+    top_level_schema = {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "type": "object",
+      "properties": {
+        "a": { "$ref": "#/nested.json" }
       }
-    })
-    create_schema("collection", {
-      "type" => "array",
-      "items" => { "$ref" => "single.json" },
-    })
+    }
+    nested_schema = {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "type": "object",
+      "required": ["b"],
+      "properties": { "b": { "type": "string" } },
+      "id": "nested"
+    }
+    response_json = { a: { b: "foo" } }
+    create_schema("schema-with-id", top_level_schema)
+    create_schema("nested", nested_schema)
 
-    valid_response = response_for([{ "foo" => "is a string" }])
-    invalid_response = response_for([{ "foo" => 0 }])
-
-    expect(valid_response).to match_response_schema("collection")
-    expect(invalid_response).not_to match_response_schema("collection")
+    expect(response_for(response_json)).
+      to match_response_schema("schema-with-id")
   end
 end

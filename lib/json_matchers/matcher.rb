@@ -1,4 +1,4 @@
-require "json-schema"
+require "json_schema"
 
 module JsonMatchers
   class Matcher
@@ -10,16 +10,20 @@ module JsonMatchers
     def matches?(response)
       @response = response
 
-      JSON::Validator.validate!(
-        schema_path.to_s,
-        response.body,
-        options,
-      )
-    rescue JSON::Schema::ValidationError => ex
-      @validation_failure_message = ex.message
-      false
-    rescue JSON::ParserError
-      raise InvalidSchemaError
+      begin
+        schema_data = JSON.parse(File.read(@schema_path.to_s))
+        response_body = JSON.parse(@response.body)
+        json_schema = JsonSchema.parse!(schema_data)
+        json_schema.expand_references
+        json_schema.validate!(response_body)
+      rescue RuntimeError => ex
+        @validation_failure_message = ex.message
+        return false
+      rescue JsonSchema::SchemaError, JSON::ParserError => ex
+        raise InvalidSchemaError
+      end
+
+      true
     end
 
     def validation_failure_message
